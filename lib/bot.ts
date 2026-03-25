@@ -11,9 +11,10 @@ export const bot = new Chat({
 // Respond when someone @mentions the bot
 bot.onNewMention(async (thread) => {
   await thread.subscribe();
-  await thread.post("Hello! I'm listening to this thread now.");
+  await thread.post("Hello Devendra! I'm listening to this thread now.");
 });
+
 // Respond to follow-up messages in subscribed threads
 bot.onSubscribedMessage(async (thread, message) => {
-  await thread.post(`You said: ${message.text}`);
+  await thread.post(`Devendra said: ${message.text}`);
 });
