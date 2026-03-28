@@ -13,3 +13,7 @@ export const bot = new Chat({
 bot.onNewMention(async (thread, message) => {
   await thread.post("Hello from WhatsApp!");
 });
+
+bot.onSubscribedMessage(async (thread, message) => {
+  await thread.post(`Devendra said: ${message.text}`);
+});
