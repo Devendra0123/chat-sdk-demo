@@ -11,7 +11,7 @@ export const bot = new Chat({
 });
 
 bot.onNewMention(async (thread, message) => {
-  await thread.post("Hello from WhatsApp!");
+  await thread.post("Hello from Chat SDK test demo by Devendra.");
 });
 
 bot.onSubscribedMessage(async (thread, message) => {
