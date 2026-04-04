@@ -23,6 +23,7 @@ import {
   TextInput,
   toAiMessages,
 } from "chat";
+import { generateAIResponse } from "./agent";
 
 export const bot = new Chat({
   userName: "mybot",
@@ -34,6 +35,7 @@ export const bot = new Chat({
 
 bot.onNewMention(async (thread, message) => {
   console.log(message);
+  
   if (message.text === "hi") {
     // await thread.post("Hi Devendra, Good luck for this project");
     await thread.post(
@@ -58,7 +60,10 @@ bot.onNewMention(async (thread, message) => {
       </Card>
     );
   } else {
-    await thread.post("Hello from Chat SDK test demo by Devendra. How can I help you?");
+    const aiResponse = await generateAIResponse(message.text);
+    console.log(aiResponse, "AI-response 111222333")
+    await thread.post(aiResponse)
+    // await thread.post("Hello from Chat SDK test demo by Devendra. How can I help you?");
   }
 });
 
