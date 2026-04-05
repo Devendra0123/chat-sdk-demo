@@ -36,7 +36,7 @@ export async function generateAIResponse(
       system: SYSTEM_PROMPT,
       messages,
       temperature: 0.7,
-      // maxTokens: 500,
+      maxOutputTokens: 500
     })
 
     return result.text || 'I apologize, but I could not generate a response. Please try again.'
