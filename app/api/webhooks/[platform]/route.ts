@@ -1,44 +1,50 @@
-import { bot } from '@/lib/bot'
-import { NextRequest, NextResponse } from 'next/server'
+import { after } from "next/server";
+import { bot } from "@/lib/bot";
 
-export async function POST(request: NextRequest) {
-  try {
-    // Get the WhatsApp handler
-    const handler = bot.webhooks.whatsapp
-    if (!handler) {
-      return NextResponse.json({ error: 'WhatsApp handler not found' }, { status: 404 })
-    }
+type Platform = keyof typeof bot.webhooks;
 
-    // Process the webhook through Chat SDK
-    // Important: Pass request directly to handler without reading body first
-    // The Chat SDK needs to read the raw request body itself
-    const response = await handler(request)
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ platform: string }> }
+): Promise<Response> {
+  const { platform } = await params;
 
-    return response
-  } catch (error) {
-    console.error('[v0] Webhook error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  // Check if we have a webhook handler for this platform
+  const webhookHandler = bot.webhooks[platform as Platform];
+  if (!webhookHandler) {
+    return new Response(`Unknown platform: ${platform}`, { status: 404 });
   }
+
+  // Handle the webhook with waitUntil for background processing
+  // Next.js after() ensures work completes after the response is sent
+  return webhookHandler(request, {
+    waitUntil: (task) => after(() => task),
+  });
 }
 
-export async function GET(request: NextRequest) {
-  // WhatsApp webhook verification endpoint
-  const searchParams = request.nextUrl.searchParams
-  const mode = searchParams.get('hub.mode')
-  const token = searchParams.get('hub.verify_token')
-  const challenge = searchParams.get('hub.challenge')
+// GET handler — serves as health check, but also forwards to webhook handler
+// for platforms that need GET verification (e.g. WhatsApp challenge-response)
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ platform: string }> }
+): Promise<Response> {
+  const { platform } = await params;
 
-  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN
-
-  console.log('[v0] Webhook verification requested')
-  console.log('[v0] Mode:', mode)
-  console.log('[v0] Token match:', token === verifyToken)
-
-  if (mode === 'subscribe' && token === verifyToken) {
-    console.log('[v0] Webhook verified successfully')
-    return new NextResponse(challenge, { status: 200 })
+  const webhookHandler = bot.webhooks[platform as Platform];
+  if (!webhookHandler) {
+    return new Response(`${platform} adapter not configured`, { status: 404 });
   }
 
-  console.log('[v0] Webhook verification failed')
-  return NextResponse.json({ error: 'Verification failed' }, { status: 403 })
+  // If the request has verification query params, forward to the adapter
+  const url = new URL(request.url);
+  if (
+    url.searchParams.has("hub.mode") ||
+    url.searchParams.has("hub.verify_token")
+  ) {
+    return webhookHandler(request);
+  }
+
+  return new Response(`${platform} webhook endpoint is active`, {
+    status: 200,
+  });
 }
