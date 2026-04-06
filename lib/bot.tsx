@@ -86,7 +86,9 @@ bot.onNewMention(async (thread, message) => {
     console.log('[v0] User WA ID:', userWaId)
 
     // Get business ID associated with this phone number
-    const businessId = await getBusinessIdByPhoneNumber(phoneNumberId)
+    const businessId = await getBusinessIdByPhoneNumber(phoneNumberId);
+
+    console.log(businessId, "Business Id")
     if (!businessId) {
       console.error('[v0] Business not found for phone number:', phoneNumberId)
       await thread.post('Unable to process your message. Please contact support.')
