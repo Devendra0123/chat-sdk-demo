@@ -27,6 +27,7 @@ import { generateAIResponse } from "./agent";
 import { getBusinessIdByPhoneNumber, getOrCreateConversation, saveMessage, updateLastMessageTime } from "./conversation-tracker";
 import { formatResponseForWhatsApp, generateBusinessResponse } from "./agent-service";
 import { createClient } from "./supabase/server";
+import { createServiceClient } from "./supabase/service";
 
 export const bot = new Chat({
   userName: "mybot",
@@ -70,7 +71,9 @@ export const bot = new Chat({
 
 bot.onNewMention(async (thread, message) => {
 
-  const supabase = await createClient()
+  // const supabase = await createClient()
+
+  const supabase = createServiceClient()  // ← no cookies(), safe anywhere
 
   try {
     console.log('[v0] New message from:', thread.id)
