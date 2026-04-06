@@ -242,3 +242,30 @@ export async function getBusinessServices(businessId: string) {
     return []
   }
 }
+
+/**
+ * Get business ID by WhatsApp phone number ID
+ * This matches the WhatsApp Business Account phone number ID to a business
+ */
+export async function getBusinessIdByPhoneNumber(phoneNumberId: string) {
+  const supabase = await createClient()
+
+  try {
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('id')
+      .eq('whatsapp_phone_number_id', phoneNumberId)
+      .single()
+
+    if (error) {
+      console.error('[v0] Error fetching business by phone number:', error)
+      return null
+    }
+
+    console.log('[v0] Found business:', data?.id)
+    return data?.id || null
+  } catch (error) {
+    console.error('[v0] Unexpected error fetching business:', error)
+    return null
+  }
+}
