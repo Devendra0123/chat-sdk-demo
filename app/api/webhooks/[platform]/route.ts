@@ -3,17 +3,15 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    console.log('[v0] Webhook received:', JSON.stringify(body, null, 2))
-
-    // Handle WhatsApp webhook events
+    // Get the WhatsApp handler
     const handler = bot.webhooks.whatsapp
     if (!handler) {
       return NextResponse.json({ error: 'WhatsApp handler not found' }, { status: 404 })
     }
 
     // Process the webhook through Chat SDK
-    // Note: Chat SDK handles the waitUntil internally for handler tasks
+    // Important: Pass request directly to handler without reading body first
+    // The Chat SDK needs to read the raw request body itself
     const response = await handler(request)
 
     return response
