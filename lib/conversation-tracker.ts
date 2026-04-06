@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * Conversation Tracker Service
@@ -20,8 +21,8 @@ export interface MessageData {
 /**
  * Get or create a conversation for a business and user
  */
-export async function getOrCreateConversation(data: ConversationData) {
-  const supabase = await createClient()
+export async function getOrCreateConversation(supabase: SupabaseClient,data: ConversationData) {
+  // const supabase = await createClient()
 
   try {
     // Try to find existing conversation
@@ -95,8 +96,8 @@ export async function isWithin24HourWindow(conversationId: string): Promise<bool
 /**
  * Save a message to conversation history
  */
-export async function saveMessage(messageData: MessageData) {
-  const supabase = await createClient()
+export async function saveMessage(supabase: SupabaseClient,messageData: MessageData) {
+  // const supabase = await createClient()
 
   try {
     const { data, error } = await supabase
@@ -123,8 +124,8 @@ export async function saveMessage(messageData: MessageData) {
 /**
  * Update last message timestamp (for 24-hour window tracking)
  */
-export async function updateLastMessageTime(conversationId: string) {
-  const supabase = await createClient()
+export async function updateLastMessageTime(supabase: SupabaseClient,conversationId: string) {
+  // const supabase = await createClient()
 
   try {
     const { data, error } = await supabase
@@ -177,8 +178,8 @@ export async function getConversationHistory(
 /**
  * Get business info for AI context
  */
-export async function getBusinessInfo(businessId: string) {
-  const supabase = await createClient()
+export async function getBusinessInfo(supabase: SupabaseClient, businessId: string) {
+  // const supabase = await createClient()
 
   try {
     const { data, error } = await supabase
@@ -200,8 +201,8 @@ export async function getBusinessInfo(businessId: string) {
 /**
  * Get FAQs for a business
  */
-export async function getBusinessFAQs(businessId: string) {
-  const supabase = await createClient()
+export async function getBusinessFAQs(supabase: SupabaseClient,businessId: string) {
+  // const supabase = await createClient()
 
   try {
     const { data, error } = await supabase
@@ -223,8 +224,8 @@ export async function getBusinessFAQs(businessId: string) {
 /**
  * Get services for a business
  */
-export async function getBusinessServices(businessId: string) {
-  const supabase = await createClient()
+export async function getBusinessServices(supabase: SupabaseClient,businessId: string) {
+  // const supabase = await createClient()
 
   try {
     const { data, error } = await supabase
@@ -247,8 +248,8 @@ export async function getBusinessServices(businessId: string) {
  * Get business ID by WhatsApp phone number ID
  * This matches the WhatsApp Business Account phone number ID to a business
  */
-export async function getBusinessIdByPhoneNumber(phoneNumberId: string) {
-  const supabase = await createClient()
+export async function getBusinessIdByPhoneNumber(supabase: SupabaseClient,phoneNumberId: string) {
+  // const supabase = await createClient()
 
   try {
     const { data, error } = await supabase

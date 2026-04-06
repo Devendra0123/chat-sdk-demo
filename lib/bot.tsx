@@ -26,6 +26,7 @@ import {
 import { generateAIResponse } from "./agent";
 import { getBusinessIdByPhoneNumber, getOrCreateConversation, saveMessage, updateLastMessageTime } from "./conversation-tracker";
 import { formatResponseForWhatsApp, generateBusinessResponse } from "./agent-service";
+import { createClient } from "./supabase/server";
 
 export const bot = new Chat({
   userName: "mybot",
@@ -68,6 +69,9 @@ export const bot = new Chat({
 // });
 
 bot.onNewMention(async (thread, message) => {
+
+  const supabase = await createClient()
+
   try {
     console.log('[v0] New message from:', thread.id)
     console.log('[v0] Message text:', message.text)
@@ -86,7 +90,7 @@ bot.onNewMention(async (thread, message) => {
     console.log('[v0] User WA ID:', userWaId)
 
     // Get business ID associated with this phone number
-    const businessId = await getBusinessIdByPhoneNumber(phoneNumberId);
+    const businessId = await getBusinessIdByPhoneNumber(supabase, phoneNumberId);
 
     console.log(businessId, "Business Id")
     if (!businessId) {
@@ -98,7 +102,7 @@ bot.onNewMention(async (thread, message) => {
     console.log('[v0] Business ID:', businessId)
 
     // Get or create conversation for this user
-    const conversation = await getOrCreateConversation({
+    const conversation = await getOrCreateConversation(supabase,{
       businessId,
       userPhoneNumber: userWaId,
     })
@@ -112,7 +116,7 @@ bot.onNewMention(async (thread, message) => {
     console.log('[v0] Conversation ID:', conversation.id)
 
     // Save the incoming message
-    await saveMessage({
+    await saveMessage(supabase, {
       conversationId: conversation.id,
       sender: 'user',
       content: message.text,
@@ -120,17 +124,17 @@ bot.onNewMention(async (thread, message) => {
     })
 
     // Update last message timestamp for 24-hour window tracking
-    await updateLastMessageTime(conversation.id)
+    await updateLastMessageTime(supabase, conversation.id)
 
     // Generate AI response using the agent service
-    const response = await generateBusinessResponse(message.text, {
+    const response = await generateBusinessResponse(supabase, message.text, {
       businessId,
       userPhone: userWaId,
       conversationHistory: [], // Will be populated by agent-service from DB
     })
 
     // Save the outgoing response
-    await saveMessage({
+    await saveMessage(supabase, {
       conversationId: conversation.id,
       sender: 'bot',
       content: response,

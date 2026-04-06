@@ -6,6 +6,7 @@ import {
   getConversationHistory,
 } from './conversation-tracker'
 import { google } from '@ai-sdk/google'
+import { SupabaseClient } from '@supabase/supabase-js'
 
  const MODEL = google('gemini-2.5-flash')
 
@@ -19,6 +20,7 @@ interface AgentContext {
  * Generate AI response based on business context and user query
  */
 export async function generateBusinessResponse(
+  supabase: SupabaseClient,
   query: string,
   context: AgentContext
 ): Promise<string> {
@@ -27,9 +29,9 @@ export async function generateBusinessResponse(
 
     // Fetch business context
     const [businessInfo, faqs, services] = await Promise.all([
-      getBusinessInfo(context.businessId),
-      getBusinessFAQs(context.businessId),
-      getBusinessServices(context.businessId),
+      getBusinessInfo(supabase,context.businessId),
+      getBusinessFAQs(supabase, context.businessId),
+      getBusinessServices(supabase, context.businessId),
     ])
 
     if (!businessInfo) {
