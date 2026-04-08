@@ -27,15 +27,21 @@ function createBusinessTools(businessId: string) {
 - Customer asks about products, prices, or availability
 - Customer mentions a product name or category
 - Customer wants to know what items you have
+- For "show all products" or "list all products", pass an empty string as query
 Do NOT use this for general business questions.`,
       inputSchema: z.object({
-        query: z.string().describe('Product name, category, or feature to search for'),
+        query: z
+          .string()
+          .describe(
+            'Specific product name, category, or feature to search for. Pass empty string "" to list all products.'
+          ),
       }),
       execute: async ({ query }: { query: string }) => {
         try {
-          const products = await getBusinessProducts(businessId, query)
+          // Normalize: treat "all", "all products", etc. as list-all (empty query)
+          const normalizedQuery = query.toLowerCase().includes('all') ? '' : query
+          const products = await getBusinessProducts(businessId, normalizedQuery)
 
-          // Handle empty results with clear signal
           if (!products || products.length === 0) {
             return {
               results: [],
@@ -75,7 +81,6 @@ Do NOT guess answers - always use this tool.`,
         try {
           const faqs = await searchBusinessFAQs(businessId, topic)
 
-          // Handle empty results with clear signal
           if (!faqs || faqs.length === 0) {
             return {
               results: [],
@@ -113,7 +118,6 @@ export async function generateBusinessResponse(
   try {
     console.log('[v0] Generating response for query:', query)
 
-    // Fetch essential business context (minimal data)
     const [businessInfo, services] = await Promise.all([
       getBusinessInfo(context.businessId),
       getBusinessServices(context.businessId),
@@ -124,30 +128,33 @@ export async function generateBusinessResponse(
       return 'I apologize, but I could not retrieve your business information. Please try again later.'
     }
 
-    // Build optimized system prompt (no products/FAQs included - fetched via tools)
     const systemPrompt = buildOptimizedSystemPrompt(businessInfo, services)
-
-    // Build message history for context
     const messages = buildMessages(context.conversationHistory, query)
+    const tools = createBusinessTools(context.businessId)
 
     console.log('[v0] System prompt length:', systemPrompt.length)
     console.log('[v0] Message history length:', messages.length)
 
-    // Create tools for dynamic lookups
-    const tools = createBusinessTools(context.businessId)
-
-    // Generate response using GPT-4 with tool calling
     const result = await generateText({
       model: MODEL,
       system: systemPrompt,
       messages,
       tools,
+      maxRetries: 5,          // ← KEY FIX: allows model to call tool AND then write a reply
       maxOutputTokens: 500,
       temperature: 0.7,
     })
 
-    console.log('[v0] Generated response:', result.text.substring(0, 100))
-    return result.text
+    const responseText = result.text?.trim()
+
+    // Guard against empty response - this was causing the WhatsApp 400 error
+    if (!responseText) {
+      console.warn('[v0] Empty response from model after tool calls')
+      return "I'm sorry, I wasn't able to generate a response. Please contact us directly for assistance."
+    }
+
+    console.log('[v0] Generated response:', responseText.substring(0, 100))
+    return responseText
   } catch (error) {
     console.error('[v0] Error generating response:', error)
     return 'I apologize for the inconvenience. Please try your question again.'
@@ -156,7 +163,6 @@ export async function generateBusinessResponse(
 
 /**
  * Optimized system prompt - minimal but instructive
- * Products/FAQs fetched dynamically via tools
  */
 function buildOptimizedSystemPrompt(businessInfo: any, services: any[]): string {
   let prompt = `You are a helpful customer service assistant for ${businessInfo.name}.
@@ -166,7 +172,6 @@ Contact: ${businessInfo.phone_number || 'Contact via website'} | Hours: ${busine
 
 `
 
-  // Add services summary only if few
   if (services && services.length > 0 && services.length <= 5) {
     prompt += `Services: ${services.map((s: any) => s.name).join(', ')}\n\n`
   } else if (services && services.length > 5) {
@@ -179,14 +184,17 @@ YOU MUST use tools when:
 ✓ Customer asks common questions (policies, shipping, returns, etc.) → use getFAQAnswer
 ✓ You're unsure about details → DO NOT GUESS, use the appropriate tool
 
+After every tool call, you MUST write a text response to the customer using the tool results.
+NEVER end your response after a tool call without sending a message.
+
 DO NOT:
 ✗ Make up product details or prices
 ✗ Guess at FAQ answers
 ✗ Ignore tool results even if unexpected
+✗ Finish without sending a message to the customer
 
 If a tool returns no results:
 → Politely tell customer: "We don't have that information available. Please contact us directly."
-→ Do NOT make up an answer
 
 === Response Format ===
 1. Be concise, professional, helpful (max 3 sentences)
@@ -204,7 +212,6 @@ If a tool returns no results:
 function buildMessages(conversationHistory: any[], newQuery: string) {
   const messages: any[] = []
 
-  // Add only recent messages for context (last 5)
   if (conversationHistory && conversationHistory.length > 0) {
     conversationHistory.slice(-5).forEach((msg) => {
       messages.push({
@@ -214,7 +221,6 @@ function buildMessages(conversationHistory: any[], newQuery: string) {
     })
   }
 
-  // Add the current query
   messages.push({
     role: 'user',
     content: newQuery,
@@ -234,7 +240,6 @@ export function formatResponseForWhatsApp(text: string): string[] {
     return [text]
   }
 
-  // Split by sentences to maintain context
   const sentences = text.match(/[^.!?]+[.!?]+/g) || [text]
   let currentMessage = ''
 

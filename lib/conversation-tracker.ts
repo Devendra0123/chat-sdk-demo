@@ -19,14 +19,8 @@ export interface MessageData {
   messageType?: string
 }
 
-/**
- * Get or create a conversation for a business and user
- */
-export async function getOrCreateConversation(supabase: SupabaseClient,data: ConversationData) {
-  // const supabase = await createClient()
-
+export async function getOrCreateConversation(supabase: SupabaseClient, data: ConversationData) {
   try {
-    // Try to find existing conversation
     const { data: existing, error: selectError } = await supabase
       .from('conversations')
       .select('*')
@@ -39,7 +33,6 @@ export async function getOrCreateConversation(supabase: SupabaseClient,data: Con
       return existing
     }
 
-    // Create new conversation
     const { data: newConversation, error: insertError } = await supabase
       .from('conversations')
       .insert({
@@ -60,9 +53,6 @@ export async function getOrCreateConversation(supabase: SupabaseClient,data: Con
   }
 }
 
-/**
- * Check if within 24-hour window for messaging
- */
 export async function isWithin24HourWindow(conversationId: string): Promise<boolean> {
   const supabase = await createClient()
 
@@ -94,12 +84,7 @@ export async function isWithin24HourWindow(conversationId: string): Promise<bool
   }
 }
 
-/**
- * Save a message to conversation history
- */
-export async function saveMessage(supabase: SupabaseClient,messageData: MessageData) {
-  // const supabase = await createClient()
-
+export async function saveMessage(supabase: SupabaseClient, messageData: MessageData) {
   try {
     const { data, error } = await supabase
       .from('messages')
@@ -122,12 +107,7 @@ export async function saveMessage(supabase: SupabaseClient,messageData: MessageD
   }
 }
 
-/**
- * Update last message timestamp (for 24-hour window tracking)
- */
-export async function updateLastMessageTime(supabase: SupabaseClient,conversationId: string) {
-  // const supabase = await createClient()
-
+export async function updateLastMessageTime(supabase: SupabaseClient, conversationId: string) {
   try {
     const { data, error } = await supabase
       .from('conversations')
@@ -149,13 +129,7 @@ export async function updateLastMessageTime(supabase: SupabaseClient,conversatio
   }
 }
 
-/**
- * Get conversation history
- */
-export async function getConversationHistory(
-  conversationId: string,
-  limit: number = 10
-) {
+export async function getConversationHistory(conversationId: string, limit: number = 10) {
   const supabase = await createClient()
 
   try {
@@ -169,19 +143,15 @@ export async function getConversationHistory(
     if (error) throw error
 
     console.log(`[v0] Retrieved ${data.length} messages from conversation history`)
-    return data.reverse() // Return in chronological order
+    return data.reverse()
   } catch (error) {
     console.error('[v0] Error fetching conversation history:', error)
     return []
   }
 }
 
-/**
- * Get business info for AI context
- */
-export async function getBusinessInfo( businessId: string) {
-  // const supabase = await createClient()
-  const supabase = createServiceClient() 
+export async function getBusinessInfo(businessId: string) {
+  const supabase = createServiceClient()
 
   try {
     const { data, error } = await supabase
@@ -200,12 +170,9 @@ export async function getBusinessInfo( businessId: string) {
   }
 }
 
-/**
- * Get FAQs for a business
- */
 export async function getBusinessFAQs(businessId: string) {
-  // const supabase = await createClient()
-  const supabase = createServiceClient() 
+  const supabase = createServiceClient()
+
   try {
     const { data, error } = await supabase
       .from('faqs')
@@ -223,12 +190,8 @@ export async function getBusinessFAQs(businessId: string) {
   }
 }
 
-/**
- * Get services for a business
- */
 export async function getBusinessServices(businessId: string) {
-  // const supabase = await createClient()
-  const supabase = createServiceClient() 
+  const supabase = createServiceClient()
 
   try {
     const { data, error } = await supabase
@@ -247,13 +210,7 @@ export async function getBusinessServices(businessId: string) {
   }
 }
 
-/**
- * Get business ID by WhatsApp phone number ID
- * This matches the WhatsApp Business Account phone number ID to a business
- */
-export async function getBusinessIdByPhoneNumber(supabase: SupabaseClient,phoneNumberId: string) {
-  // const supabase = await createClient()
-
+export async function getBusinessIdByPhoneNumber(supabase: SupabaseClient, phoneNumberId: string) {
   try {
     const { data, error } = await supabase
       .from('businesses')
@@ -275,10 +232,11 @@ export async function getBusinessIdByPhoneNumber(supabase: SupabaseClient,phoneN
 }
 
 /**
- * Get products for a business
+ * Get products for a business with optional search query.
+ * Passing an empty string or no query returns all products (up to limit).
  */
 export async function getBusinessProducts(businessId: string, searchQuery?: string) {
-  const supabase = createServiceClient() 
+  const supabase = createServiceClient()
 
   try {
     let query = supabase
@@ -286,15 +244,16 @@ export async function getBusinessProducts(businessId: string, searchQuery?: stri
       .select('id, title, price, category, description, stock_quantity')
       .eq('business_id', businessId)
 
-    // Apply search filter at DB level if provided
-    if (searchQuery) {
-      // Use OR for title or category match
-      query = query.or(`title.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`)
+    // Only apply LIKE filter when there is a meaningful, specific search term.
+    // Empty string, whitespace, or undefined = list all products (no filter).
+    const trimmed = searchQuery?.trim()
+    if (trimmed) {
+      query = query.or(`title.ilike.%${trimmed}%,category.ilike.%${trimmed}%`)
     }
 
     const { data, error } = await query
       .order('created_at', { ascending: false })
-      .limit(5) // Limit results to prevent large responses
+      .limit(5)
 
     if (error) throw error
 
@@ -310,7 +269,7 @@ export async function getBusinessProducts(businessId: string, searchQuery?: stri
  * Search FAQs with optional query - filtering at DB level
  */
 export async function searchBusinessFAQs(businessId: string, searchQuery?: string) {
-  const supabase = createServiceClient() 
+  const supabase = createServiceClient()
 
   try {
     let query = supabase
@@ -318,14 +277,14 @@ export async function searchBusinessFAQs(businessId: string, searchQuery?: strin
       .select('question, answer')
       .eq('business_id', businessId)
 
-    // Apply search filter at DB level if provided
-    if (searchQuery) {
-      query = query.or(`question.ilike.%${searchQuery}%,answer.ilike.%${searchQuery}%`)
+    const trimmed = searchQuery?.trim()
+    if (trimmed) {
+      query = query.or(`question.ilike.%${trimmed}%,answer.ilike.%${trimmed}%`)
     }
 
     const { data, error } = await query
       .order('created_at', { ascending: false })
-      .limit(3) // Limit to prevent large responses
+      .limit(3)
 
     if (error) throw error
 
