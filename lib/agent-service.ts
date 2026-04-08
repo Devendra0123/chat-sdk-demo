@@ -140,10 +140,15 @@ export async function generateBusinessResponse(
       system: systemPrompt,
       messages,
       tools,
-      maxRetries: 5,          // ← KEY FIX: allows model to call tool AND then write a reply
+      maxRetries: 5,
+      toolChoice: 'auto',
       maxOutputTokens: 500,
       temperature: 0.7,
     })
+
+    console.log('[v0] Tool calls:', result.toolCalls)
+    console.log('[v0] Tool results:', result.toolResults)
+    console.log('[v0] Text:', result.text)
 
     const responseText = result.text?.trim()
 
@@ -184,8 +189,11 @@ YOU MUST use tools when:
 ✓ Customer asks common questions (policies, shipping, returns, etc.) → use getFAQAnswer
 ✓ You're unsure about details → DO NOT GUESS, use the appropriate tool
 
-After every tool call, you MUST write a text response to the customer using the tool results.
-NEVER end your response after a tool call without sending a message.
+When you use a tool:
+1. Review the tool results carefully
+2. ALWAYS respond to the customer using those results
+3. Your response must be in plain text
+4. Never return empty output
 
 DO NOT:
 ✗ Make up product details or prices
