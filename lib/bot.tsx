@@ -23,10 +23,10 @@ import {
   TextInput,
   toAiMessages,
 } from "chat";
-import { generateAIResponse } from "./agent";
+// import { generateAIResponse } from "./agent";
 import { getBusinessIdByPhoneNumber, getOrCreateConversation, saveMessage, updateLastMessageTime } from "./conversation-tracker";
 import { formatResponseForWhatsApp, generateBusinessResponse } from "./agent-service";
-import { createClient } from "./supabase/server";
+// import { createClient } from "./supabase/server";
 import { createServiceClient } from "./supabase/service";
 
 export const bot = new Chat({

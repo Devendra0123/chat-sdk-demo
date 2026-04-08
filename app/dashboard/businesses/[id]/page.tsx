@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { BusinessSetupForm } from '@/components/business-setup-form'
+import { ProductsList } from '@/components/products-list'
 
 interface Business {
   id: string
@@ -16,6 +17,7 @@ interface Business {
   email: string
   website: string
   opening_hours: string
+  whatsapp_phone_number_id?: string
   created_at: string
 }
 
@@ -27,6 +29,7 @@ export default function BusinessDetailPage() {
   const [business, setBusiness] = useState<Business | null>(null)
   const [loading, setLoading] = useState(true)
   const [editMode, setEditMode] = useState(false)
+  const [activeTab, setActiveTab] = useState<'settings' | 'products'>('settings')
 
   useEffect(() => {
     fetchBusiness()
@@ -115,7 +118,36 @@ export default function BusinessDetailPage() {
               )}
             </div>
 
-            {/* Business Info Cards */}
+            {/* Tab Navigation */}
+            <div className="flex gap-4 border-b border-border mb-8">
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+                  activeTab === 'settings'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Business Settings
+              </button>
+              <button
+                onClick={() => setActiveTab('products')}
+                className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+                  activeTab === 'products'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Products
+              </button>
+            </div>
+
+            {/* Content based on active tab */}
+            {activeTab === 'products' ? (
+              <ProductsList businessId={business.id} />
+            ) : (
+              <>
+              {/* Business Info Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               {/* Overview Card */}
               <Card className="p-6">
@@ -217,6 +249,8 @@ export default function BusinessDetailPage() {
                 </Link>
               </div>
             </Card>
+              </>
+            )}
           </div>
         )}
       </div>

@@ -270,3 +270,26 @@ export async function getBusinessIdByPhoneNumber(supabase: SupabaseClient,phoneN
     return null
   }
 }
+
+/**
+ * Get products for a business
+ */
+export async function getBusinessProducts(businessId: string) {
+  const supabase = await createClient()
+
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('business_id', businessId)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    console.log(`[v0] Retrieved ${data.length} products`)
+    return data
+  } catch (error) {
+    console.error('[v0] Error fetching products:', error)
+    return []
+  }
+}
