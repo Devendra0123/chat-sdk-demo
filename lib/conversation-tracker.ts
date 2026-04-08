@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { SupabaseClient } from '@supabase/supabase-js'
+import { createServiceClient } from './supabase/service'
 
 /**
  * Conversation Tracker Service
@@ -275,7 +276,9 @@ export async function getBusinessIdByPhoneNumber(supabase: SupabaseClient,phoneN
  * Get products for a business
  */
 export async function getBusinessProducts(businessId: string) {
-  const supabase = await createClient()
+  // const supabase = await createClient()
+
+  const supabase = createServiceClient() 
 
   try {
     const { data, error } = await supabase
