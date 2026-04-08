@@ -179,8 +179,9 @@ export async function getConversationHistory(
 /**
  * Get business info for AI context
  */
-export async function getBusinessInfo(supabase: SupabaseClient, businessId: string) {
+export async function getBusinessInfo( businessId: string) {
   // const supabase = await createClient()
+  const supabase = createServiceClient() 
 
   try {
     const { data, error } = await supabase
@@ -202,9 +203,9 @@ export async function getBusinessInfo(supabase: SupabaseClient, businessId: stri
 /**
  * Get FAQs for a business
  */
-export async function getBusinessFAQs(supabase: SupabaseClient,businessId: string) {
+export async function getBusinessFAQs(businessId: string) {
   // const supabase = await createClient()
-
+  const supabase = createServiceClient() 
   try {
     const { data, error } = await supabase
       .from('faqs')
@@ -225,8 +226,9 @@ export async function getBusinessFAQs(supabase: SupabaseClient,businessId: strin
 /**
  * Get services for a business
  */
-export async function getBusinessServices(supabase: SupabaseClient,businessId: string) {
+export async function getBusinessServices(businessId: string) {
   // const supabase = await createClient()
+  const supabase = createServiceClient() 
 
   try {
     const { data, error } = await supabase
@@ -275,24 +277,62 @@ export async function getBusinessIdByPhoneNumber(supabase: SupabaseClient,phoneN
 /**
  * Get products for a business
  */
-export async function getBusinessProducts(businessId: string) {
-  // const supabase = await createClient()
-
+export async function getBusinessProducts(businessId: string, searchQuery?: string) {
   const supabase = createServiceClient() 
 
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('products')
-      .select('*')
+      .select('id, title, price, category, description, stock_quantity')
       .eq('business_id', businessId)
+
+    // Apply search filter at DB level if provided
+    if (searchQuery) {
+      // Use OR for title or category match
+      query = query.or(`title.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%`)
+    }
+
+    const { data, error } = await query
       .order('created_at', { ascending: false })
+      .limit(5) // Limit results to prevent large responses
 
     if (error) throw error
 
-    console.log(`[v0] Retrieved ${data.length} products`)
-    return data
+    console.log(`[v0] Retrieved ${data.length} products for query: "${searchQuery || 'all'}"`)
+    return data || []
   } catch (error) {
     console.error('[v0] Error fetching products:', error)
+    return []
+  }
+}
+
+/**
+ * Search FAQs with optional query - filtering at DB level
+ */
+export async function searchBusinessFAQs(businessId: string, searchQuery?: string) {
+  const supabase = createServiceClient() 
+
+  try {
+    let query = supabase
+      .from('faqs')
+      .select('question, answer')
+      .eq('business_id', businessId)
+
+    // Apply search filter at DB level if provided
+    if (searchQuery) {
+      query = query.or(`question.ilike.%${searchQuery}%,answer.ilike.%${searchQuery}%`)
+    }
+
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .limit(3) // Limit to prevent large responses
+
+    if (error) throw error
+
+    console.log(`[v0] Retrieved ${data.length} FAQs for query: "${searchQuery || 'all'}"`)
+    return data || []
+  } catch (error) {
+    console.error('[v0] Error fetching FAQs:', error)
     return []
   }
 }

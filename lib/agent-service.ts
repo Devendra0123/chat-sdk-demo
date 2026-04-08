@@ -1,72 +1,15 @@
 import { generateText, tool } from 'ai'
-import { z } from 'zod'
+import * as z from 'zod'
 import {
   getBusinessInfo,
-  getBusinessFAQs,
   getBusinessServices,
   getConversationHistory,
-  getBusinessProducts
+  getBusinessProducts,
+  searchBusinessFAQs,
 } from './conversation-tracker'
 import { google } from '@ai-sdk/google'
-import { SupabaseClient } from '@supabase/supabase-js'
 
- const MODEL = google('gemini-2.5-flash')
-
-//  function createAgentTools(businessId: string) {
-//   return {
-//     getProduct: tool({
-//       description: 'Get details about a specific product by ID. Use this when a customer asks about product details, pricing, or availability.',
-//       parameters: z.object({
-//         productId: z.string().describe('The unique product ID'),
-//       }),
-//       execute: async ({ productId }: { productId: string }): Promise<any> => {
-//         try {
-//           const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/products/${productId}`)
-//           if (!response.ok) {
-//             return { error: 'Product not found' }
-//           }
-//           const product = await response.json()
-//           return {
-//             id: product.id,
-//             title: product.title,
-//             description: product.description,
-//             price: product.price,
-//             category: product.category,
-//             stock_quantity: product.stock_quantity,
-//           }
-//         } catch (error) {
-//           console.error('[v0] Error fetching product:', error)
-//           return { error: 'Unable to fetch product details' }
-//         }
-//       },
-//     }),
-//     listProducts: tool({
-//       description: 'List all available products for this business. Use this when a customer asks what products are available.',
-//       parameters: z.object({
-//         category: z.string().optional().describe('Filter by product category'),
-//       }),
-//       execute: async ({ category }: { category?: string }): Promise<any> => {
-//         try {
-//           const products = await getBusinessProducts(businessId)
-//           let filtered = products || []
-//           if (category) {
-//             filtered = filtered.filter((p: any) => p.category?.toLowerCase() === category.toLowerCase())
-//           }
-//           return filtered.map((p: any) => ({
-//             id: p.id,
-//             title: p.title,
-//             price: p.price,
-//             category: p.category,
-//             stock_quantity: p.stock_quantity,
-//           }))
-//         } catch (error) {
-//           console.error('[v0] Error listing products:', error)
-//           return []
-//         }
-//       },
-//     }),
-//   }
-// }
+const MODEL = google('gemini-2.5-flash')
 
 interface AgentContext {
   businessId: string
@@ -75,22 +18,105 @@ interface AgentContext {
 }
 
 /**
+ * Create tools for product and FAQ lookups (DB-level filtering for scalability)
+ */
+function createBusinessTools(businessId: string) {
+  return {
+    searchProducts: tool({
+      description: `Search for products in our catalog. Use this tool when:
+- Customer asks about products, prices, or availability
+- Customer mentions a product name or category
+- Customer wants to know what items you have
+Do NOT use this for general business questions.`,
+      inputSchema: z.object({
+        query: z.string().describe('Product name, category, or feature to search for'),
+      }),
+      execute: async ({ query }: { query: string }) => {
+        try {
+          const products = await getBusinessProducts(businessId, query)
+
+          // Handle empty results with clear signal
+          if (!products || products.length === 0) {
+            return {
+              results: [],
+              message: 'No matching products found',
+            }
+          }
+
+          return {
+            results: products.map((p: any) => ({
+              title: p.title,
+              price: `$${p.price}`,
+              category: p.category || 'Uncategorized',
+              description: p.description,
+              availability: p.stock_quantity > 0 ? 'In stock' : 'Out of stock',
+            })),
+            message: `Found ${products.length} product(s)`,
+          }
+        } catch (error) {
+          console.error('[v0] Error searching products:', error)
+          return {
+            results: [],
+            message: 'Error searching products. Please try again.',
+          }
+        }
+      },
+    }),
+    getFAQAnswer: tool({
+      description: `Search our FAQ database for answers. Use this tool when:
+- Customer asks common questions about policies, shipping, returns
+- Customer asks "how do I...", "what is...", "do you..."
+- You need accurate information beyond your knowledge
+Do NOT guess answers - always use this tool.`,
+      inputSchema: z.object({
+        topic: z.string().describe('FAQ topic or question keyword to search for'),
+      }),
+      execute: async ({ topic }: { topic: string }) => {
+        try {
+          const faqs = await searchBusinessFAQs(businessId, topic)
+
+          // Handle empty results with clear signal
+          if (!faqs || faqs.length === 0) {
+            return {
+              results: [],
+              message: 'No matching FAQ found',
+            }
+          }
+
+          return {
+            results: faqs.map((f: any) => ({
+              question: f.question,
+              answer: f.answer,
+            })),
+            message: `Found ${faqs.length} matching FAQ(s)`,
+          }
+        } catch (error) {
+          console.error('[v0] Error fetching FAQs:', error)
+          return {
+            results: [],
+            message: 'Error fetching FAQs. Please try again.',
+          }
+        }
+      },
+    }),
+  }
+}
+
+/**
  * Generate AI response based on business context and user query
+ * Uses tools for dynamic content lookup when needed
  */
 export async function generateBusinessResponse(
-  supabase: SupabaseClient,
   query: string,
   context: AgentContext
 ): Promise<string> {
   try {
     console.log('[v0] Generating response for query:', query)
 
-    // Fetch business context
-    const [businessInfo, faqs, services, products] = await Promise.all([
-      getBusinessInfo(supabase,context.businessId),
-      getBusinessFAQs(supabase, context.businessId),
-      getBusinessServices(supabase, context.businessId),
-      getBusinessProducts(context.businessId),
+    // Fetch essential business context (minimal data)
+    const [businessInfo, services] = await Promise.all([
+      getBusinessInfo(context.businessId),
+      getBusinessServices(context.businessId),
     ])
 
     if (!businessInfo) {
@@ -98,8 +124,8 @@ export async function generateBusinessResponse(
       return 'I apologize, but I could not retrieve your business information. Please try again later.'
     }
 
-    // Build system prompt with business context
-    const systemPrompt = buildSystemPrompt(businessInfo, faqs, services, products)
+    // Build optimized system prompt (no products/FAQs included - fetched via tools)
+    const systemPrompt = buildOptimizedSystemPrompt(businessInfo, services)
 
     // Build message history for context
     const messages = buildMessages(context.conversationHistory, query)
@@ -107,17 +133,17 @@ export async function generateBusinessResponse(
     console.log('[v0] System prompt length:', systemPrompt.length)
     console.log('[v0] Message history length:', messages.length)
 
-    // Create agent tools
-    // const tools = createAgentTools(context.businessId)
+    // Create tools for dynamic lookups
+    const tools = createBusinessTools(context.businessId)
 
-    // Generate response using GPT-4
+    // Generate response using GPT-4 with tool calling
     const result = await generateText({
       model: MODEL,
       system: systemPrompt,
       messages,
-      // tools,
+      tools,
+      maxOutputTokens: 500,
       temperature: 0.7,
-      maxOutputTokens: 500
     })
 
     console.log('[v0] Generated response:', result.text.substring(0, 100))
@@ -129,75 +155,58 @@ export async function generateBusinessResponse(
 }
 
 /**
- * Build system prompt with business context
+ * Optimized system prompt - minimal but instructive
+ * Products/FAQs fetched dynamically via tools
  */
-function buildSystemPrompt(
-  businessInfo: any,
-  faqs: any[],
-  services: any[],
-  products: any[] = []
-): string {
+function buildOptimizedSystemPrompt(businessInfo: any, services: any[]): string {
   let prompt = `You are a helpful customer service assistant for ${businessInfo.name}.
 
-Business Information:
-- Industry: ${businessInfo.industry || 'Not specified'}
-- Description: ${businessInfo.description || 'Not provided'}
-- Phone: ${businessInfo.phone_number || 'Not provided'}
-- Email: ${businessInfo.email || 'Not provided'}
-- Website: ${businessInfo.website || 'Not provided'}
-- Hours: ${businessInfo.opening_hours || 'Not specified'}
+Business: ${businessInfo.industry || 'Service provider'} - ${businessInfo.description || 'Supporting customers with quality service.'}
+Contact: ${businessInfo.phone_number || 'Contact via website'} | Hours: ${businessInfo.opening_hours || 'Check website'}
 
 `
 
- // Add products if available
- if (products && products.length > 0) {
-  prompt += `Available Products (${products.length} total):\n`
-  products.slice(0, 10).forEach((product) => {
-    prompt += `- ${product.title}: $${product.price} (ID: ${product.id})\n`
-  })
-  prompt += `Use the getProduct tool to fetch detailed information about specific products when customers ask.\n\n`
-}
-
-  // Add services if available
-  if (services && services.length > 0) {
-    prompt += `Services Offered:\n`
-    services.forEach((service) => {
-      prompt += `- ${service.name}: ${service.description || 'N/A'}\n`
-    })
-    prompt += '\n'
+  // Add services summary only if few
+  if (services && services.length > 0 && services.length <= 5) {
+    prompt += `Services: ${services.map((s: any) => s.name).join(', ')}\n\n`
+  } else if (services && services.length > 5) {
+    prompt += `Services: We offer multiple services. Ask about specific ones.\n\n`
   }
 
-  // Add FAQs if available
-  if (faqs && faqs.length > 0) {
-    prompt += `Frequently Asked Questions:\n`
-    faqs.slice(0, 5).forEach((faq) => {
-      prompt += `Q: ${faq.question}\nA: ${faq.answer}\n\n`
-    })
-  }
+  prompt += `=== IMPORTANT: Tool Usage Rules ===
+YOU MUST use tools when:
+✓ Customer asks about products, prices, or availability → use searchProducts
+✓ Customer asks common questions (policies, shipping, returns, etc.) → use getFAQAnswer
+✓ You're unsure about details → DO NOT GUESS, use the appropriate tool
 
-  prompt += `
-Instructions:
-1. You represent ${businessInfo.name}. Answer customer questions based on the business information provided above.
-2. Be professional, friendly, and helpful.
-3. When customers ask about specific products, use the getProduct or listProducts tools to fetch accurate information.
-4. If you don't know the answer, suggest the customer contact the business directly.
-5. Keep responses concise and focused (max 2-3 sentences per response).
-6. Always respect Meta's 24-hour message window policy - this is a response message to a customer inquiry.
-7. Don't offer products or services not listed above.
+DO NOT:
+✗ Make up product details or prices
+✗ Guess at FAQ answers
+✗ Ignore tool results even if unexpected
+
+If a tool returns no results:
+→ Politely tell customer: "We don't have that information available. Please contact us directly."
+→ Do NOT make up an answer
+
+=== Response Format ===
+1. Be concise, professional, helpful (max 3 sentences)
+2. Keep WhatsApp format simple (no fancy formatting)
+3. If unsure about anything, suggest contacting directly or visiting website
+4. Always respect this is a quick response channel
 `
 
   return prompt
 }
 
 /**
- * Build message history for context
+ * Build message history for context (limit to last 5 messages)
  */
 function buildMessages(conversationHistory: any[], newQuery: string) {
   const messages: any[] = []
 
-  // Add up to 5 previous messages for context
+  // Add only recent messages for context (last 5)
   if (conversationHistory && conversationHistory.length > 0) {
-    conversationHistory.slice(-10).forEach((msg) => {
+    conversationHistory.slice(-5).forEach((msg) => {
       messages.push({
         role: msg.sender === 'user' ? 'user' : 'assistant',
         content: msg.content,
@@ -212,17 +221,6 @@ function buildMessages(conversationHistory: any[], newQuery: string) {
   })
 
   return messages
-}
-
-/**
- * Extract business ID from WhatsApp thread ID
- * Format: whatsapp:phoneNumberId:userWaId
- */
-export function extractBusinessIdFromThread(threadId: string): string | null {
-  const parts = threadId.split(':')
-  // For now, we'll need the business ID passed separately
-  // In production, you'd have a mapping of phone numbers to business IDs
-  return null
 }
 
 /**
