@@ -130,7 +130,7 @@ bot.onNewMention(async (thread, message) => {
     await updateLastMessageTime(supabase, conversation.id)
 
     // Generate AI response using the agent service
-    const response = await generateBusinessResponse(supabase, message.text, {
+    const response = await generateBusinessResponse(message.text, {
       businessId,
       userPhone: userWaId,
       conversationHistory: [], // Will be populated by agent-service from DB
