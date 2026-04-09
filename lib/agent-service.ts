@@ -1,4 +1,4 @@
-import { generateText, tool } from 'ai'
+import { generateText, tool, stepCountIs } from 'ai'
 import * as z from 'zod'
 import {
   getBusinessInfo,
@@ -140,7 +140,7 @@ export async function generateBusinessResponse(
       system: systemPrompt,
       messages,
       tools,
-      maxRetries: 5,
+      stopWhen: stepCountIs(5),
       toolChoice: 'auto',
       maxOutputTokens: 500,
       temperature: 0.7,
@@ -152,11 +152,11 @@ export async function generateBusinessResponse(
 
     const responseText = result.text?.trim()
 
-    // Guard against empty response - this was causing the WhatsApp 400 error
-    if (!responseText) {
-      console.warn('[v0] Empty response from model after tool calls')
-      return "I'm sorry, I wasn't able to generate a response. Please contact us directly for assistance."
-    }
+   // Guard against empty response
+   if (!result.text || result.text.trim() === '') {
+    console.warn('[v0] Empty response from model')
+    return "I'm sorry, I wasn't able to generate a response. Please try again or contact us directly."
+  }
 
     console.log('[v0] Generated response:', responseText.substring(0, 100))
     return responseText
@@ -183,32 +183,27 @@ Contact: ${businessInfo.phone_number || 'Contact via website'} | Hours: ${busine
     prompt += `Services: We offer multiple services. Ask about specific ones.\n\n`
   }
 
-  prompt += `=== IMPORTANT: Tool Usage Rules ===
-YOU MUST use tools when:
-✓ Customer asks about products, prices, or availability → use searchProducts
-✓ Customer asks common questions (policies, shipping, returns, etc.) → use getFAQAnswer
-✓ You're unsure about details → DO NOT GUESS, use the appropriate tool
+  prompt += `=== CRITICAL: Tool Usage & Response Rules ===
+YOU MUST ALWAYS:
+1. When customer asks about products/prices/availability → call searchProducts tool
+2. When customer asks FAQs/policies/how-to questions → call getFAQAnswer tool
+3. ALWAYS respond with a helpful message AFTER tool calls complete
+4. Never leave the customer without a response
 
-When you use a tool:
-1. Review the tool results carefully
-2. ALWAYS respond to the customer using those results
-3. Your response must be in plain text
-4. Never return empty output
+After tool results arrive:
+✓ Use the tool data to craft your response
+✓ Always send a message to the customer
+✓ Never return empty - always say something helpful
 
-DO NOT:
-✗ Make up product details or prices
-✗ Guess at FAQ answers
-✗ Ignore tool results even if unexpected
-✗ Finish without sending a message to the customer
+If tool returns no results:
+→ Tell customer: "We don't have that information available. Please contact us directly at [phone] or visit our website."
+→ NEVER make up information
 
-If a tool returns no results:
-→ Politely tell customer: "We don't have that information available. Please contact us directly."
-
-=== Response Format ===
-1. Be concise, professional, helpful (max 3 sentences)
-2. Keep WhatsApp format simple (no fancy formatting)
-3. If unsure about anything, suggest contacting directly or visiting website
-4. Always respect this is a quick response channel
+=== Response Guidelines ===
+- Be concise (max 3 sentences)
+- Professional and friendly tone
+- Keep format simple for WhatsApp
+- Always provide a clear answer
 `
 
   return prompt
