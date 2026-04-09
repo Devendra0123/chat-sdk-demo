@@ -130,8 +130,8 @@ export async function updateLastMessageTime(supabase: SupabaseClient, conversati
 }
 
 export async function getConversationHistory(conversationId: string, limit: number = 10) {
-  const supabase = await createClient()
-
+  // const supabase = await createClient()
+  const supabase = createServiceClient()
   try {
     const { data, error } = await supabase
       .from('messages')
