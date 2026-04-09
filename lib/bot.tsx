@@ -24,7 +24,7 @@ import {
   toAiMessages,
 } from "chat";
 // import { generateAIResponse } from "./agent";
-import { getBusinessIdByPhoneNumber, getOrCreateConversation, saveMessage, updateLastMessageTime } from "./conversation-tracker";
+import { getBusinessIdByPhoneNumber, getConversationHistory, getOrCreateConversation, saveMessage, updateLastMessageTime } from "./conversation-tracker";
 import { formatResponseForWhatsApp, generateBusinessResponse } from "./agent-service";
 // import { createClient } from "./supabase/server";
 import { createServiceClient } from "./supabase/service";
@@ -129,11 +129,15 @@ bot.onNewMention(async (thread, message) => {
     // Update last message timestamp for 24-hour window tracking
     await updateLastMessageTime(supabase, conversation.id)
 
+    //  Fetch conversation history for context (excludes current message, will be added by agent-service)
+    const conversationHistory = await getConversationHistory(conversation.id)
+    console.log('[v0] Conversation history length:', conversationHistory.length)
+
     // Generate AI response using the agent service
     const response = await generateBusinessResponse(message.text, {
       businessId,
       userPhone: userWaId,
-      conversationHistory: [], // Will be populated by agent-service from DB
+      conversationHistory
     })
 
     // Save the outgoing response

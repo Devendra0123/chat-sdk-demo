@@ -248,10 +248,11 @@ export async function getBusinessProducts(businessId: string, searchQuery?: stri
     // Empty string, whitespace, or undefined = list all products (no filter).
     const trimmed = searchQuery?.trim()
     if (trimmed) {
-      query = query.or(`title.ilike.%${trimmed}%,category.ilike.%${trimmed}%`)
+      query = query.or(`title.ilike.%${trimmed}%,description.ilike.%${trimmed}%,category.ilike.%${trimmed}%`)
     }
 
     const { data, error } = await query
+      .order('stock_quantity', { ascending: false }) // Show in-stock items first
       .order('created_at', { ascending: false })
       .limit(5)
 
